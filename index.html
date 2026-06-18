@@ -1,0 +1,419 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <title>ON AIR – Radio Player</title>
+
+    <!--
+      GENERAL SETUP NOTES
+
+      1. REPO NAME / URL
+         - Create a public GitHub repo, for example: "radio-player".
+         - Turn on GitHub Pages (Settings → Pages).
+         - Your player URL will look like:
+           https://YOUR_GITHUB_USERNAME.github.io/radio-player/
+
+      2. AUDIO FILES
+         - Place your MP3 files in the SAME FOLDER as this index.html,
+           OR in a subfolder like "audio/".
+         - Update the playlist array in the JS section below with:
+           - The display name (what listeners see)
+           - The file path (relative URL to your MP3 in this repo)
+
+      3. ON AIR GIF
+         - Place a small animated GIF in the same folder and rename it to:
+           on-air.gif
+         - Or change the filename in the CSS/HTML below.
+    -->
+
+    <style>
+        /* RESET */
+        * {
+            box-sizing: border-box;
+            margin: 0;
+            padding: 0;
+        }
+
+        body {
+            background-color: #000000;
+            color: #00ff66;
+            font-family: "Verdana", "Geneva", sans-serif;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            min-height: 100vh;
+        }
+
+        /* MAIN PLAYER CARD */
+        .player-wrapper {
+            background-color: #050505;
+            border: 3px solid #00ff66;
+            padding: 16px 20px;
+            width: 100%;
+            max-width: 420px; /* Good for iframe + popup */
+            box-shadow: 0 0 8px #00ff66;
+        }
+
+        .player-header {
+            display: flex;
+            align-items: center;
+            justify-content: space-between;
+            margin-bottom: 8px;
+        }
+
+        .player-title {
+            font-size: 16px;
+            text-transform: uppercase;
+            letter-spacing: 2px;
+            color: #ffff66;
+        }
+
+        .on-air {
+            display: flex;
+            align-items: center;
+            gap: 6px;
+        }
+
+        .on-air img {
+            width: 40px;
+            height: auto;
+        }
+
+        .on-air span {
+            font-size: 12px;
+            color: #ff3366;
+        }
+
+        .now-playing {
+            margin-bottom: 10px;
+            font-size: 14px;
+        }
+
+        .track-name {
+            color: #00ffff;
+        }
+
+        /* CONTROLS */
+        .controls {
+            display: flex;
+            align-items: center;
+            gap: 8px;
+            margin-bottom: 8px;
+        }
+
+        .btn {
+            background-color: #00ff66;
+            color: #000000;
+            border: 1px solid #003322;
+            padding: 4px 10px;
+            font-size: 12px;
+            cursor: pointer;
+        }
+
+        .btn:hover {
+            background-color: #ffff66;
+        }
+
+        /* PROGRESS BAR */
+        .progress-container {
+            width: 100%;
+            height: 10px;
+            background-color: #002211;
+            cursor: pointer;
+            margin-bottom: 6px;
+        }
+
+        .progress-bar {
+            height: 100%;
+            background-color: #00ff66;
+            width: 0%;
+        }
+
+        .time-info {
+            display: flex;
+            justify-content: space-between;
+            font-size: 11px;
+            color: #66ffcc;
+            margin-bottom: 8px;
+        }
+
+        /* VOLUME */
+        .volume-row {
+            display: flex;
+            align-items: center;
+            gap: 6px;
+            font-size: 11px;
+            margin-bottom: 6px;
+        }
+
+        .volume-row input[type="range"] {
+            width: 100%;
+        }
+
+        /* FOOTER LINKS */
+        .footer-links {
+            margin-top: 6px;
+            font-size: 11px;
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+        }
+
+        .footer-links a {
+            color: #00ffff;
+            text-decoration: none;
+        }
+
+        .footer-links a:hover {
+            color: #ff66ff;
+            text-decoration: underline;
+        }
+
+        .tiny-note {
+            color: #888888;
+            font-size: 10px;
+        }
+    </style>
+</head>
+<body>
+
+<div class="player-wrapper">
+    <div class="player-header">
+        <div class="player-title">Exclusive Radio</div>
+        <div class="on-air">
+            <!--
+              ON AIR GIF
+              - Place your GIF in this repo and name it: on-air.gif
+              - Or change "on-air.gif" below to your actual filename.
+            -->
+            <img src="on-air.gif" alt="ON AIR">
+            <span>LIVE</span>
+        </div>
+    </div>
+
+    <div class="now-playing">
+        Now playing: <span class="track-name" id="track-name">Loading...</span>
+    </div>
+
+    <div class="controls">
+        <button class="btn" id="prev-btn">⏮</button>
+        <button class="btn" id="play-pause-btn">▶</button>
+        <button class="btn" id="next-btn">⏭</button>
+    </div>
+
+    <div class="progress-container" id="progress-container">
+        <div class="progress-bar" id="progress-bar"></div>
+    </div>
+
+    <div class="time-info">
+        <span id="current-time">0:00</span>
+        <span id="duration">0:00</span>
+    </div>
+
+    <div class="volume-row">
+        <span>VOL</span>
+        <input type="range" id="volume-slider" min="0" max="1" step="0.05" value="0.8">
+    </div>
+
+    <div class="footer-links">
+        <!--
+          POP-OUT LINK
+          - This link opens the SAME player URL in a separate small window.
+          - Replace YOUR_GITHUB_USERNAME and REPO_NAME below
+            with your actual GitHub username and repo.
+        -->
+        <a href="javascript:void(0);" id="popout-link">Open in new window</a>
+        <span class="tiny-note">tip: tap anywhere to start</span>
+    </div>
+</div>
+
+<!-- HIDDEN AUDIO ELEMENT -->
+<audio id="audio-player"></audio>
+
+<script>
+    // ============================================================
+    // PLAYLIST CONFIGURATION
+    // ============================================================
+    //
+    // IMPORTANT:
+    // - Place your audio files in this repo.
+    // - Update the 'tracks' array with:
+    //     name: What you want displayed
+    //     src:  File path relative to this index.html
+    //
+    // EXAMPLES:
+    //   If "summer-vibes.mp3" is next to index.html:
+    //     src: "summer-vibes.mp3"
+    //   If it's in an "audio" folder:
+    //     src: "audio/summer-vibes.mp3"
+    //
+
+    const tracks = [
+        { name: "Summer Vibes",   src: "summer-vibes.mp3" },
+        { name: "Night Driving",  src: "night-driving.mp3" },
+        { name: "Chill Hours",    src: "chill-hours.mp3" }
+
+        // Add or remove tracks as needed:
+        // { name: "NEW TRACK NAME", src: "your-file-name.mp3" },
+    ];
+
+    // ============================================================
+    // BASIC PLAYER LOGIC (no need to edit below unless customizing)
+    // ============================================================
+
+    const audio = document.getElementById("audio-player");
+    const trackNameEl = document.getElementById("track-name");
+    const playPauseBtn = document.getElementById("play-pause-btn");
+    const prevBtn = document.getElementById("prev-btn");
+    const nextBtn = document.getElementById("next-btn");
+    const progressContainer = document.getElementById("progress-container");
+    const progressBar = document.getElementById("progress-bar");
+    const currentTimeEl = document.getElementById("current-time");
+    const durationEl = document.getElementById("duration");
+    const volumeSlider = document.getElementById("volume-slider");
+    const popoutLink = document.getElementById("popout-link");
+
+    // TRACK STATE
+    let currentTrackIndex = 0;
+    let isPlaying = false;
+    let userInteracted = false;
+
+    // Randomize starting track on each page load
+    if (tracks.length > 0) {
+        currentTrackIndex = Math.floor(Math.random() * tracks.length);
+    }
+
+    // Load the current track into the audio element and UI
+    function loadTrack(index) {
+        const track = tracks[index];
+        if (!track) return;
+        audio.src = track.src;
+        trackNameEl.textContent = track.name;
+    }
+
+    // Play current track
+    function playTrack() {
+        if (!tracks.length) return;
+        audio.play().then(() => {
+            isPlaying = true;
+            playPauseBtn.textContent = "❚❚";
+        }).catch(() => {
+            // Autoplay might still be blocked until interaction.
+        });
+    }
+
+    // Pause
+    function pauseTrack() {
+        audio.pause();
+        isPlaying = false;
+        playPauseBtn.textContent = "▶";
+    }
+
+    // Toggle play/pause
+    function togglePlayPause() {
+        userInteracted = true;
+        if (isPlaying) {
+            pauseTrack();
+        } else {
+            playTrack();
+        }
+    }
+
+    // Previous track (wrap around)
+    function playPrevTrack() {
+        if (!tracks.length) return;
+        currentTrackIndex = (currentTrackIndex - 1 + tracks.length) % tracks.length;
+        loadTrack(currentTrackIndex);
+        if (userInteracted) {
+            playTrack();
+        }
+    }
+
+    // Next track (wrap around)
+    function playNextTrack() {
+        if (!tracks.length) return;
+        currentTrackIndex = (currentTrackIndex + 1) % tracks.length;
+        loadTrack(currentTrackIndex);
+        if (userInteracted) {
+            playTrack();
+        }
+    }
+
+    // Format time helper
+    function formatTime(seconds) {
+        if (isNaN(seconds)) return "0:00";
+        const mins = Math.floor(seconds / 60);
+        const secs = Math.floor(seconds % 60);
+        return mins + ":" + (secs < 10 ? "0" + secs : secs);
+    }
+
+    // UPDATE PROGRESS BAR
+    audio.addEventListener("timeupdate", () => {
+        if (!audio.duration) return;
+        const percent = (audio.currentTime / audio.duration) * 100;
+        progressBar.style.width = percent + "%";
+        currentTimeEl.textContent = formatTime(audio.currentTime);
+        durationEl.textContent = formatTime(audio.duration);
+    });
+
+    // SEEK WHEN CLICKING PROGRESS BAR
+    progressContainer.addEventListener("click", (event) => {
+        const rect = progressContainer.getBoundingClientRect();
+        const clickX = event.clientX - rect.left;
+        const percent = clickX / rect.width;
+        if (audio.duration) {
+            audio.currentTime = percent * audio.duration;
+        }
+    });
+
+    // AUTO-ADVANCE TO NEXT TRACK
+    audio.addEventListener("ended", () => {
+        playNextTrack();
+    });
+
+    // VOLUME CONTROL
+    volumeSlider.addEventListener("input", () => {
+        audio.volume = volumeSlider.value;
+    });
+    audio.volume = volumeSlider.value;
+
+    // BUTTON EVENTS
+    playPauseBtn.addEventListener("click", togglePlayPause);
+    prevBtn.addEventListener("click", () => {
+        userInteracted = true;
+        playPrevTrack();
+    });
+    nextBtn.addEventListener("click", () => {
+        userInteracted = true;
+        playNextTrack();
+    });
+
+    // First user interaction anywhere on the page should start playback
+    document.body.addEventListener("click", () => {
+        if (!userInteracted) {
+            userInteracted = true;
+            playTrack();
+        }
+    }, { once: true });
+
+    // POP-OUT LINK
+    popoutLink.addEventListener("click", () => {
+        // Replace YOUR_GITHUB_USERNAME and REPO_NAME below with your actual values
+        const url = "https://YOUR_GITHUB_USERNAME.github.io/REPO_NAME/";
+        window.open(
+            url,
+            "radioPlayer",
+            "width=420,height=220,toolbar=0,scrollbars=0,location=0,statusbar=0,menubar=0,resizable=1"
+        );
+    });
+
+    // INITIAL LOAD
+    if (tracks.length > 0) {
+        loadTrack(currentTrackIndex);
+    } else {
+        trackNameEl.textContent = "No tracks configured";
+    }
+</script>
+
+</body>
+</html>
