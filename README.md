@@ -20,6 +20,7 @@ The intention of this repo is to develop an official SoulSeesBest Fan Club App, 
 
 ## Contact
 Joshua Lucero
+https://writerjoshua.github.io/soulseesbest/
 connect@writerjoshua.com
 
 Latest Update: Saturday November 21, 2026
