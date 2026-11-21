@@ -19,8 +19,8 @@ It is built to host long playing audio presentations, with several hosting optio
 The intention of this repo is to develop an official SoulSeesBest Fan Club App, with the key feature being the broadcast element.
 
 ## Contact
-Joshua Lucero
-https://writerjoshua.github.io/soulseesbest/
+Joshua Lucero  
+https://writerjoshua.github.io/soulseesbest/  
 connect@writerjoshua.com
 
 Latest Update: Saturday November 21, 2026
