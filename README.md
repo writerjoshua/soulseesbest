@@ -6,7 +6,7 @@ SoulSeesBest is a multi-genre, symphonic, intelligent Electronica experience, me
 ## Music
 SoulSeesBest is an electronic instrumental project based in Southern California, Arizona, and New Mexico. Primary tools include GarageBand for iOS and MacOS, Casio CTK-2000, AudioKit digital drum sequencers and synthesizers, and various live instrumentation and custom sound effects. 
 
-The band is currently streaming on all major platforms and at the official website.
+The band is currently streaming on all major platforms and at the official website.  
 https://soulsees.best
 
 ## App
