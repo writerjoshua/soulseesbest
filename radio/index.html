@@ -442,10 +442,10 @@
         </div>
       </div>
       <div class="track-meta">
-        <h1 class="track-title" id="trackTitle">Off Air</h1>
+        <h1 class="track-title" id="trackTitle">We are currently Off the Air.</h1>
         <p class="track-artist" id="trackArtist">SoulstiesOnly Radio</p>
         <p class="status-line" id="statusLine"><span class="status-dot" aria-hidden="true"></span><span id="statusText">Press play to tune in</span></p>
-        <p class="broadcast-line" id="broadcastLine"><span id="broadcastText">Loading the feed&hellip;</span></p>
+        <p class="broadcast-line" id="broadcastLine"><span id="broadcastText">We are currently Off the Air.</span></p>
         <p class="chapter-line" id="chapterLine" hidden><span class="chapter-kicker">Chapter</span><span id="chapterTitle"></span></p>
       </div>
       <div class="volume-inline">
@@ -462,8 +462,8 @@
     <div class="schedule-bar" id="scheduleBar">
       <div class="ticker-viewport">
         <div class="ticker-track" id="rotationTicker">
-          <span class="ticker-copy" id="rotationText">Rotation loading…</span>
-          <span class="ticker-copy" id="rotationText2" aria-hidden="true">Rotation loading…</span>
+          <span class="ticker-copy" id="rotationText">We are currently Off the Air.</span>
+          <span class="ticker-copy" id="rotationText2" aria-hidden="true">We are currently Off the Air.</span>
         </div>
       </div>
       <a class="radio-link" href="https://soulsees.best/radio" target="_blank" rel="noopener">SoulSees.Best/Radio</a>
@@ -524,9 +524,9 @@
      the rotation from its episodes, newest first, each with its
      own title, artwork, and duration from the feed. The feed sends
      a cross-origin allow header, so the browser reads it directly.
-     The player simply LOOPS the feed: episodes play one after
-     another and the last one hands back to the first, for as long
-     as the listener leaves it playing. There is NO fallback
+     The broadcast runs on a two-hour cycle (see THE CYCLE below):
+     each cycle airs one episode, and pressing play joins that
+     episode wherever the cycle has reached. There is NO fallback
      rotation: the GitHub tracks in assets/ are not part of the
      rotation and are never played. If the feed cannot be read, or
      it has no playable episodes, the fallback is STATIC — the
@@ -598,13 +598,20 @@
     }
     return playable[0];
   }
-  /* ==== THE LOOP ====================================================
-     There is no schedule and no clock: the player simply loops
-     the feed. Episodes play newest first, one after another, and
-     when the last one ends the loop starts again from the top —
-     for as long as the listener leaves it playing. Pressing play
-     starts the current episode; pausing holds the spot, and the
-     next press resumes right there. Track changes are dressed
+  /* ==== THE CYCLE ===================================================
+     The broadcast runs on a two-hour cycle, counted from the
+     Unix epoch so every listener's player agrees on where the
+     broadcast is. Each cycle airs one episode from the feed —
+     the rotation steps through the episodes newest first, one
+     per cycle — and the episode plays once, starting at the top
+     of the cycle. Pressing play TUNES IN: playback joins the
+     current cycle's episode at the offset the cycle has already
+     reached, never from the top, and pressing play again after
+     a pause rejoins at the live offset too — the broadcast is
+     always current. When the episode ends before the cycle
+     does, the rest of the cycle is static: the face shows Off
+     the Air and the hiss is the program until the next cycle
+     brings the next episode. Track changes are dressed
      with a short burst of static — the signal window goes to
      noise and a brief hiss sounds — so joins feel like a dial
      moving, never a hard cut. Static has exactly one other job:
@@ -622,7 +629,11 @@
      play and volume remain the only controls.
      ================================================================== */
   var isOffAirActive = true; /* the face is on the Off Air state — no playable feed episode right now */
-  var fallbackStatic = true; /* static is the current program because nothing is loaded — the window draws noise, and the hiss sounds while the listener is tuned in. Starts true: nothing is loaded yet. Cleared the moment a real episode loads. */
+  var fallbackStatic = true; /* static is the current program — the window draws noise, and the hiss sounds while the listener is tuned in. Starts true: nothing is loaded yet. Also true through the static gap at the end of each cycle. */
+  var CYCLE_SECONDS = 2 * 60 * 60; /* the broadcast cycle: one episode airs per two-hour cycle */
+  var gapActive = false;    /* the broadcast is in the static gap at the end of a cycle */
+  var gapForCycle = -1;     /* a cycle whose episode has already played out (its file ended) — the rest of that cycle is the gap even if the feed's stated duration runs longer */
+  var lastLoadAt = 0;       /* when the current track load began — the live-drift check leaves fresh loads alone */
   var staticCtx = null, staticSource = null, staticGain = null;
 
   function updateStatusPill(){
@@ -665,7 +676,7 @@
        hiss sounds whenever the listener is tuned in (has pressed
        play), falling silent only on pause. */
     fallbackStatic = true;
-    titleEl.textContent = 'Off Air';
+    titleEl.textContent = 'We are currently Off the Air.';
     artistEl.textContent = 'SoulstiesOnly Radio';
     setArtwork(FALLBACK_ART, false);
     if (chapterLineEl) chapterLineEl.hidden = true;
@@ -673,7 +684,7 @@
     isOffAirActive = true;
     updateStatusPill();
     if ('mediaSession' in navigator){
-      try { navigator.mediaSession.metadata = new MediaMetadata({ title: 'Off Air', artist: 'SoulstiesOnly Radio', album: 'SoulstiesOnly Radio \u00b7 SoulSeesBest', artwork: [{ src: FALLBACK_ART, sizes: '512x512', type: 'image/png' }] }); } catch(e){}
+      try { navigator.mediaSession.metadata = new MediaMetadata({ title: 'We are currently Off the Air.', artist: 'SoulstiesOnly Radio', album: 'SoulstiesOnly Radio \u00b7 SoulSeesBest', artwork: [{ src: FALLBACK_ART, sizes: '512x512', type: 'image/png' }] }); } catch(e){}
     }
   }
   function fmtOffset(sec){
@@ -685,10 +696,8 @@
   function updateBroadcastLine(){
     if (!broadcastTextEl) return;
     var t = tracks[index];
-    if (!t){
-      broadcastTextEl.textContent = feedFailed
-        ? 'Static \u2014 the feed couldn\u2019t be reached; it re-checks on its own'
-        : 'Static while the feed loads\u2026';
+    if (!t || fallbackStatic || gapActive){
+      broadcastTextEl.textContent = 'We are currently Off the Air.';
       return;
     }
     /* The line under the track name: where this episode sits in
@@ -712,16 +721,116 @@
      change, so the loop's joins feel like a dial moving, never a
      hard cut. This burst is the only place static ever sounds. */
   var transitionTimer = null;
-  function playWithTransition(i, autoplay){
+  function playWithTransition(i, autoplay, seekTo){
     beginTuning();
-    if (!autoplay){ loadTrack(i, false); return; }
+    if (!autoplay){ loadTrack(i, false, seekTo); return; }
     startStaticNoise();
     if (transitionTimer) clearTimeout(transitionTimer);
     transitionTimer = setTimeout(function(){
       transitionTimer = null;
       stopStaticNoise(false);
-      loadTrack(i, true);
+      loadTrack(i, true, seekTo);
     }, 900);
+  }
+  /* Where the broadcast is right now: the current two-hour
+     cycle, the episode that cycle airs (the rotation steps
+     through the playable episodes, one per cycle), and how far
+     into the cycle — and therefore into the episode — the
+     broadcast has reached. When the offset has run past the
+     episode's duration, the broadcast is in the static gap for
+     the rest of the cycle. Returns null only when the feed has
+     supplied no episodes at all. */
+  function cycleInfo(){
+    if (!tracks.length) return null;
+    var list = playableIndices();
+    if (!list.length){
+      list = [];
+      for (var i = 0; i < tracks.length; i++) list.push(i);
+    }
+    var nowSec = Date.now() / 1000;
+    var cycle = Math.floor(nowSec / CYCLE_SECONDS);
+    var offset = nowSec - cycle * CYCLE_SECONDS;
+    var n = list.length;
+    var idx = list[((cycle % n) + n) % n];
+    var dur = liveDurations[idx] || (tracks[idx] && tracks[idx].dur) || 0;
+    var inGap = dur > 0 && dur < CYCLE_SECONDS && offset >= dur;
+    var nextIdx = list[(((cycle + 1) % n) + n) % n];
+    return { cycle: cycle, offset: offset, idx: idx, dur: dur, inGap: inGap, nextIdx: nextIdx, nextStartMs: (cycle + 1) * CYCLE_SECONDS * 1000 };
+  }
+  /* The static gap: the episode for this cycle has played out
+     and the next cycle has not begun. The face goes to Off the
+     Air, the window draws noise, and — while the listener is
+     tuned in — the hiss sounds. Nothing else plays in the gap. */
+  function enterGap(){
+    if (transitionTimer){ clearTimeout(transitionTimer); transitionTimer = null; }
+    gapActive = true;
+    if (!audio.paused){ try { audio.pause(); } catch(e){} }
+    soundFlowing = false;
+    showOffAirFace();
+    if (wantPlay) startStaticNoise();
+    lastTickerText = '';
+    updateRotationUI();
+    updateBroadcastLine();
+    syncPlayUI();
+  }
+  /* Put the face and the playback on the live broadcast position:
+     the static gap if the cycle is in one, otherwise the cycle's
+     episode at the live offset — playing if the listener is tuned
+     in, loaded for display if they are not. A listener already
+     playing the live episode is left alone. */
+  function applyLivePosition(){
+    var info = cycleInfo();
+    if (!info){ updateRotationUI(); return; }
+    if (info.inGap || gapForCycle === info.cycle){ enterGap(); return; }
+    gapActive = false;
+    var wasStatic = fallbackStatic;
+    fallbackStatic = false;
+    if (wasStatic) stopStaticNoise(false);
+    if (wantPlay){
+      if (wasStatic || !(index === info.idx && audio.src && !audio.ended)) playWithTransition(info.idx, true, info.offset);
+    } else if (index !== info.idx || isOffAirActive || !audio.src){
+      loadTrack(info.idx, false, info.offset);
+    }
+    lastTickerText = '';
+    updateRotationUI();
+    syncPlayUI();
+  }
+  /* Once a second, keep the broadcast current: when a cycle
+     boundary passes, the face (and, for a tuned-in listener, the
+     playback) moves to the new cycle's episode or into the gap,
+     and a listener whose playback has drifted far from the live
+     offset is rejoined to it. */
+  function checkLiveCycle(){
+    if (!tracks.length) return;
+    var info = cycleInfo();
+    if (!info) return;
+    var gapNow = info.inGap || gapForCycle === info.cycle;
+    if (gapNow){
+      if (!gapActive) enterGap();
+      return;
+    }
+    if (fallbackStatic && !gapActive) return; /* the nothing-loaded fallback — a fresh play press or a landed feed is what clears it */
+    if (gapActive){
+      gapActive = false;
+      fallbackStatic = false;
+      stopStaticNoise(false);
+      if (wantPlay) playWithTransition(info.idx, true, info.offset);
+      else loadTrack(info.idx, false, info.offset);
+      lastTickerText = '';
+      updateRotationUI();
+      syncPlayUI();
+      return;
+    }
+    if (wantPlay){
+      if (transitionTimer) return;
+      if (index !== info.idx){ playWithTransition(info.idx, true, info.offset); return; }
+      if (soundFlowing && lastLoadAt && Date.now() - lastLoadAt > 4000){
+        var drift = (audio.currentTime || 0) - info.offset;
+        if (drift < -25 || drift > 25) loadTrack(info.idx, true, info.offset);
+      }
+    } else {
+      if (index !== info.idx || isOffAirActive) loadTrack(info.idx, false, info.offset);
+    }
   }
   /* The listener's own local time, from their browser's clock —
      shown in the info strip at the bottom of the faceplate. */
@@ -916,9 +1025,9 @@
   }
   /* Swap in a rebuilt rotation without disturbing the listener:
      durations carry over by src, a track that is playing keeps
-     playing (only its position in the order is updated), and if
-     nothing has played yet the face reloads to the top of the new
-     rotation — the newest episode. */
+     playing (only its position in the order is updated), and the
+     face lands on the live broadcast position in the new
+     rotation (see applyLivePosition). */
   function setTracks(newTracks){
     var currentSrc = (tracks[index] && tracks[index].src) || '';
     tracks = newTracks;
@@ -933,27 +1042,16 @@
     for (var k = 0; k < tracks.length; k++){
       if (tracks[k].src === currentSrc){ newIdx = k; break; }
     }
-    if (newIdx >= 0){
-      index = newIdx;
-      if (!wantPlay && !hasPlayed) loadTrack(0, false);
-    } else {
-      index = 0;
-      if (!wantPlay) loadTrack(0, false);
-    }
+    if (newIdx >= 0) index = newIdx; else index = 0;
     lastTickerText = '';
     maybeFetchChapters(tracks[index]);
     refreshChapterDisplay(true);
-    updateRotationUI();
-    if (fallbackStatic){
-      /* The feed landed while static was the fallback: leave
-         static behind and, if the listener is tuned in, come in
-         through the transition into the current episode. (When
-         nobody is tuned in, the display load above already
-         cleared the fallback.) */
-      fallbackStatic = false;
-      stopStaticNoise(false);
-      if (wantPlay) playWithTransition(index, true);
-    }
+    /* The rebuilt rotation takes its place on the broadcast
+       cycle: the face — and the playback, for a tuned-in
+       listener — lands on the live position, or on the static
+       gap if the cycle is in one. A listener already playing
+       the live episode is not disturbed. */
+    applyLivePosition();
   }
   var feedEpisodeKey = ''; /* the episode src list last applied — a re-check that finds the same list changes nothing */
   var feedFailed = false; /* true only after a feed read has actually failed / returned no episodes — the station is OFF AIR then, with no substitute rotation */
@@ -1098,86 +1196,78 @@
   function updateRotationUI(){
     var playable = playableIndices();
     var text;
-    /* Loop ticker: names what's playing in the loop now, what
-       comes up next, and what follows — with estimated start
-       times while playing, read off the current track's real
-       remaining time (see the note above renderTicker). With
-       nothing playable there is no loop to name: the ticker
-       says whether the feed is still loading or couldn't be
-       reached. */
+    /* Ticker: names the episode on the air now and the next
+       broadcast — the next cycle's episode, starting at the top
+       of that cycle. In the static gap, and whenever nothing is
+       playable, it says the station is Off the Air and still
+       names the next broadcast with its start time (with no
+       episodes loaded at all, the next broadcast line is dropped
+       rather than guessed). No feed or error wording ever
+       appears on the face. */
     if (!playable.length){
-      text = feedFailed
-        ? 'Static \u2014 the feed could not be reached, so static plays until it can | See the full broadcast lineup at '
-        : 'Static while the feed loads | See the full broadcast lineup at ';
+      if (tracks.length && tracks[0] && tracks[0].title){
+        text = 'We are currently Off the Air. | Next broadcast is ' + tracks[0].title + ' at ' + formatClockTime(new Date()) + ' | See the full broadcast lineup at ';
+      } else {
+        text = 'We are currently Off the Air. | See the full broadcast lineup at ';
+      }
       if (text === lastTickerText) return;
       lastTickerText = text;
       renderTicker(text);
       return;
     }
-    var curT = tracks[index];
-    var ni = nextIndex(index);
-    var ai = ni >= 0 ? nextIndex(ni) : -1;
-    text = 'In the loop: ' + (curT ? curT.title : '');
-    if (ni >= 0 && ni !== index && tracks[ni]){
-      var nextBit = 'Coming up: ' + tracks[ni].title;
-      var curDur = liveDurations[index] || 0;
-      var nextStart = null, afterStart = null;
-      if (wantPlay && curDur > 0){
-        var rem = Math.max(0, curDur - (audio.currentTime || 0));
-        nextStart = new Date(Date.now() + rem * 1000);
-        if ((liveDurations[ni] || 0) > 0) afterStart = new Date(nextStart.getTime() + liveDurations[ni] * 1000);
-      }
-      if (nextStart) nextBit = 'Coming up at ' + formatClockTime(nextStart) + ': ' + tracks[ni].title;
-      text += ' | ' + nextBit;
-      if (ai >= 0 && ai !== ni && ai !== index && tracks[ai]){
-        text += ' | Followed by ' + tracks[ai].title + (afterStart ? ' at ' + formatClockTime(afterStart) : '');
-      }
-    } else {
-      text += ' | One episode in the feed \u2014 it loops';
+    var info = cycleInfo();
+    if (!info){
+      text = 'We are currently Off the Air. | See the full broadcast lineup at ';
+      if (text === lastTickerText) return;
+      lastTickerText = text;
+      renderTicker(text);
+      return;
     }
-    text += ' | See the full broadcast lineup at ';
+    var nextT = tracks[info.nextIdx];
+    var nextWhen = formatClockTime(new Date(info.nextStartMs));
+    if (info.inGap || gapActive || gapForCycle === info.cycle){
+      text = 'We are currently Off the Air. | Next broadcast is ' + (nextT ? nextT.title : '') + ' at ' + nextWhen + ' | See the full broadcast lineup at ';
+    } else {
+      var curT = tracks[info.idx];
+      text = 'Now playing: ' + (curT ? curT.title : '') + ' | Next broadcast is ' + (nextT ? nextT.title : '') + ' at ' + nextWhen + ' | See the full broadcast lineup at ';
+    }
     if (text === lastTickerText) return;
     lastTickerText = text;
     renderTicker(text);
   }
-  /* Roll on to the next track in the loop and keep playing,
-     through the transition static. A track that just played to
-     its end is proof the files load, so the handoff clears the
-     failure flags up front. When the track that ended was the
-     last in the loop, nextIndex wraps to the first — the feed
-     loops. */
+  /* A track that just played to its end is proof the files
+     load, so the handoff clears the failure flags up front.
+     The episode does not roll into another one: its cycle is
+     over, and the rest of that cycle is the static gap. */
   function advance(){
     loadFailed = false;
     failStreak = 0;
     wantPlay = true;
-    var nxt = nextIndex(index);
-    if (nxt < 0){
+    var info = cycleInfo();
+    if (!info){
       /* Nothing playable in the feed: fall back to static on the
          Off Air face — the listener stays tuned in and static is
          the program until an episode can load. No other file is
          ever substituted. */
-      wantPlay = true;
       showOffAirFace();
       startStaticNoise();
       syncPlayUI();
       updateBroadcastLine();
       return;
     }
-    playWithTransition(nxt, true);
-    updateBroadcastLine();
+    /* The cycle's episode has played out: the rest of the cycle
+       is the static gap, and the next cycle brings the next
+       episode — nothing rolls straight into another episode. */
+    gapForCycle = info.cycle;
+    enterGap();
   }
   function updateStatusText(){
     if (loadFailed && !wantPlay){
-      statusTextEl.textContent = 'Couldn\u2019t load the track \u2014 tap play to try again';
+      statusTextEl.textContent = 'Press play to try again';
       return;
     }
-    /* Static fallback: nothing is loaded, so static is what's
-       on — say so plainly instead of claiming a track is tuning
-       or playing. */
     if (fallbackStatic){
-      statusTextEl.textContent = wantPlay
-        ? 'Static \u2014 nothing loaded from the feed'
-        : 'Static fallback \u2014 press play';
+      statusTextEl.textContent = 'We are currently Off the Air.';
       return;
     }
     /* Sound actually flowing is claimed only once it is really
@@ -1185,7 +1275,7 @@
        arriving (or stalled), and calling that "playing" is how a
        silent player looked like a working one. */
     if (!tracks.length){
-      statusTextEl.textContent = feedFailed ? 'Off Air \u2014 the feed couldn\u2019t be reached' : 'Loading the feed\u2026';
+      statusTextEl.textContent = 'We are currently Off the Air.';
       return;
     }
     if (wantPlay && !soundFlowing){
@@ -1436,17 +1526,10 @@
          same two the page does: play and pause. Play resumes the
          loop where it sits; pause holds the spot. */
       navigator.mediaSession.setActionHandler('play', function(){
-        loadFailed = false; wantPlay = true; beginTuning();
-        if (tracks.length){
-          if (audio.src && !audio.error && !audio.ended && hasPlayed && (audio.currentTime || 0) > 0.25) tryPlay();
-          else loadTrack(index, true);
-        } else {
-          /* Nothing loaded: the lock-screen play puts the
-             static fallback on, same as the page's play button. */
-          fallbackStatic = true;
-          startStaticNoise();
-        }
-        syncPlayUI();
+        /* The lock screen's play is the page's play button: it
+           tunes in to the live broadcast position, same as a
+           tap on the face. */
+        if (!wantPlay) playBtn.click();
       });
       navigator.mediaSession.setActionHandler('pause', function(){ wantPlay = false; if (transitionTimer){ clearTimeout(transitionTimer); transitionTimer = null; } stopStaticNoise(false); audio.pause(); syncPlayUI(); });
     } catch(e){}
@@ -1458,11 +1541,13 @@
     if (!tracks.length || !tracks[i]){ showOffAirFace(); if (wantPlay) startStaticNoise(); updateBroadcastLine(); return; }
     /* A real episode is loading: static's fallback shift is over. */
     fallbackStatic = false;
+    gapActive = false;
     stopStaticNoise(false);
     isOffAirActive = false;
     updateStatusPill();
     index = (i + tracks.length) % tracks.length;
     var t = tracks[index];
+    lastLoadAt = Date.now();
     hasPlayed = false;
     soundFlowing = false;
     audio.src = t.src;
@@ -1532,13 +1617,13 @@
   }
   playBtn.addEventListener('click', function(){
     if (!wantPlay) {
-      /* Pressing play starts the loop. A fresh start — nothing
-         loaded yet, or the loaded episode has ended — comes in
-         through the transition static, the way tuning a dial
-         does. A pause, though, holds its spot: pressing play
-         again mid-episode resumes right where it stopped, with
-         no static and no jump. From there playback persists
-         across track ends, looping the feed, until pause. */
+      /* Pressing play tunes in: playback joins the current
+         cycle's episode at the live offset, coming in through
+         the transition static the way tuning a dial does. The
+         broadcast stays current — pressing play again after a
+         pause rejoins at the live offset, not where the pause
+         left off. In the cycle's static gap, tuning in gets
+         the Off the Air face and the hiss. */
       wantPlay = true;
       loadFailed = false;
       beginTuning();
@@ -1552,12 +1637,18 @@
         syncPlayUI();
         return;
       }
-      var resumable = audio.src && !audio.error && !audio.ended && hasPlayed && (audio.currentTime || 0) > 0.25;
-      if (resumable){
-        tryPlay();
-      } else {
-        playWithTransition(index, true);
+      var info = cycleInfo();
+      if (!info || info.inGap || gapForCycle === info.cycle){
+        /* The cycle is in its static gap: tuning in gets the
+           Off the Air face and the hiss until the next cycle. */
+        enterGap();
+        syncPlayUI();
+        return;
       }
+      gapActive = false;
+      fallbackStatic = false;
+      stopStaticNoise(false);
+      playWithTransition(info.idx, true, info.offset);
       syncPlayUI();
     } else {
       wantPlay = false;
@@ -1598,14 +1689,16 @@
        on an error once a real play attempt has been made. */
     if (audio.error && audio.error.code === 1) return;
     if (!attemptedPlay) return;
-    /* A track that cannot load at all — an empty placeholder file,
-       a corrupt copy — is skipped, not fatal: the rotation moves
-       on to the next track. Only when every track has failed in a
-       row does the status line call it a load failure and stop. */
+    /* A load that fails is retried at the live broadcast
+       position — a stumble is not fatal. Only when every track
+       has failed in a row does the player fall back to static
+       and stop. */
     failStreak++;
-    var nextIdx = nextIndex(index);
-    if (nextIdx >= 0 && failStreak < tracks.length){
-      loadTrack(nextIdx, wantPlay);
+    var info = cycleInfo();
+    if (info && failStreak < tracks.length){
+      /* Retry at the live broadcast position — the broadcast
+         stays current even when a load stumbles. */
+      loadTrack(info.idx, wantPlay, info.offset);
     } else {
       /* Every track failed in a row: fall back to static rather
          than silence — it stays on while the listener is tuned
@@ -1669,6 +1762,10 @@
   localClockEl.textContent = localClockLabel();
   setInterval(function(){
     localClockEl.textContent = localClockLabel();
+    /* Keep the broadcast current: a cycle boundary moves the
+       face (and a tuned-in listener's playback) to the new
+       cycle's episode or into the static gap. */
+    checkLiveCycle();
     updateRotationUI();
     /* While stopped, keep the episode line current (it changes
        when the feed lands or the rotation rebuilds). While
@@ -1935,9 +2032,11 @@
        track loaded on open turned out to be one of them, move to
        the first track that can actually play. */
     updateRotationUI();
+    /* If the track on the face turned out to be one that cannot
+       play, land on the live broadcast position instead. */
     var playable = playableIndices();
     if (playable.length && playable.indexOf(index) === -1 && !hasPlayed){
-      loadTrack(playable[0], wantPlay);
+      checkLiveCycle();
     }
     updateBroadcastLine();
     updateStatusText();
