@@ -568,6 +568,7 @@
   var attemptedPlay = false; /* only surface load errors once the listener has actually pressed play */
   var hasPlayed = false;    /* sound has actually flowed for this track — proof the file loaded */
   var soundFlowing = false; /* the 'playing' event has fired and no stall since — audio data is really moving, not just requested */
+  var notFlowingSince = 0;  /* when the current stretch of pressed-play-but-no-sound began — the stall watchdog reloads the stream if it runs long */
   var index = 0;
   var failStreak = 0;       /* tracks in a row that failed to load — a dead file is skipped, not fatal */
   var wantPlay = false;     /* the listener pressed play and hasn't paused — playback persists across track ends until they press pause */
@@ -657,7 +658,16 @@
   var onStaticTrack = false; /* the element is currently on the static track */
 
   function updateStatusPill(){
-    if (onairText) onairText.textContent = isOffAirActive ? 'OFF AIR' : 'LIVE';
+    /* LIVE is claimed only when sound is really flowing (or the
+       listener simply hasn't pressed play — the station is on
+       the air, they're just not listening). A stream that has
+       been requested but hasn't started moving yet reads
+       TUNING IN, never LIVE: a silent player must not wear a
+       working one's face. */
+    if (!onairText) return;
+    if (isOffAirActive) onairText.textContent = 'OFF AIR';
+    else if (soundFlowing || !wantPlay) onairText.textContent = 'LIVE';
+    else onairText.textContent = 'TUNING IN';
   }
   /* --- Static: a real track in the same element ---
      Moving onto the static track is a track change like any
@@ -1343,7 +1353,11 @@
        in a row. On static, "Playing" means the hiss itself is
        sounding. */
     if (loadFailed && !wantPlay){
-      statusTextEl.textContent = 'Press play to tune in';
+      /* A play attempt genuinely failed: name the retry instead
+         of the generic stopped wording, so the listener knows
+         the tap is the fix rather than wondering if the station
+         is down. */
+      statusTextEl.textContent = "Stream didn't start \u2014 press play to retry";
       return;
     }
     /* Sound actually flowing is claimed only once it is really
@@ -1589,6 +1603,10 @@
        request is dropped instead of played. */
     if (!wantPlay) return;
     attemptedPlay = true;
+    /* Every fresh play request restarts the stall clock: the
+       watchdog only reloads a stream that has had a full window
+       since its last real attempt, never one mid-tune-in. */
+    if (!soundFlowing) notFlowingSince = Date.now();
     loadFailed = false;
     updateStatusText();
     var p = audio.play();
@@ -1650,9 +1668,24 @@
     refreshChapterDisplay(true);
     var targetSeek = (typeof seekTo === 'number' && isFinite(seekTo) && seekTo > 0.5) ? seekTo : 0;
     if (targetSeek > 0){
-      /* Start partway in: wait for metadata, seek to the offset,
-         THEN play — so the listener never hears the start of the
-         track before the jump. */
+      /* Start partway in: the seek happens when the metadata
+         lands — metadata is parsed from the head of the file,
+         before the stream can produce sound, so the listener
+         still never hears the start of the track before the
+         jump. But play is NOT held hostage to the metadata any
+         more: it is requested right away, below, in the same
+         turn that loaded the track. When loadTrack runs inside
+         the listener's tap on the play button, that keeps the
+         play() call inside the user gesture itself — which is
+         what mobile browsers demand before they will start a
+         stream at all. The old flow (wait for metadata, then
+         play, on top of the tune-in transition's own delay)
+         called play() from a later task, outside the gesture,
+         and the browser refused it: the face showed the episode
+         as live and no sound ever started. tryPlay still
+         re-checks wantPlay at call time and when its promise
+         resolves, so a pause pressed during tune-in is never
+         overridden by a late start. */
       var seekHandled = false;
       var onMeta = function(){
         if (seekHandled) return; seekHandled = true;
@@ -1664,26 +1697,10 @@
         } catch(e){}
         try { refreshChapterDisplay(true); } catch(e){}
         updateBroadcastLine();
-        /* The metadata can land after the listener has already
-           paused during tune-in: only start the sound if they
-           are still tuned in, never over their pause. */
-        if (autoplay && wantPlay) tryPlay();
       };
       audio.addEventListener('loadedmetadata', onMeta);
-      setTimeout(function(){
-        if (!seekHandled){
-          seekHandled = true;
-          audio.removeEventListener('loadedmetadata', onMeta);
-          if (autoplay && wantPlay) tryPlay();
-        }
-      }, 3200);
-      if (!autoplay){
-        /* Display-only load with an offset: the seek still happens
-           on metadata so the chapter line matches the position. */
-      }
-    } else {
-      if (autoplay) tryPlay();
     }
+    if (autoplay) tryPlay();
   }
   function syncPlayUI(){
     /* The button reflects the listener's intent, not the element's
@@ -1738,7 +1755,17 @@
       }
       gapActive = false;
       fallbackStatic = false;
-      playWithTransition(info.idx, true, info.offset);
+      /* Load and play RIGHT HERE, inside the tap: the play()
+         call must happen in the user-gesture turn itself, or
+         mobile browsers refuse it and the player sits silent
+         under a face that claims the episode is live. The
+         tuning burst above still dresses the signal window
+         while the stream starts; only the audio path skips
+         the wait. (playWithTransition's delayed start is still
+         used for track changes while playback is already
+         running, where the element is already unlocked and no
+         gesture is needed.) */
+      loadTrack(info.idx, true, info.offset);
       syncPlayUI();
     } else {
       wantPlay = false;
@@ -1762,13 +1789,20 @@
   audio.addEventListener('playing', function(){
     /* Sound is actually flowing: clear any load failure and
        remember that this track provably loaded. */
-    hasPlayed = true; loadFailed = false; failStreak = 0; soundFlowing = true; syncPlayUI(); updateBroadcastLine();
+    hasPlayed = true; loadFailed = false; failStreak = 0; soundFlowing = true; notFlowingSince = 0; syncPlayUI(); updateBroadcastLine();
   });
   audio.addEventListener('waiting', function(){
     /* The stream stalled mid-play (a buffer underrun): the element
        still reads as un-paused, but no sound is moving — say so
-       instead of leaving a silent "Playing" on screen. */
-    soundFlowing = false; updateStatusText();
+       instead of leaving a silent "Playing" on screen, drop the
+       pill back to TUNING IN, and start the stall watchdog's
+       clock: if the sound hasn't resumed within its window, the
+       watchdog reloads the stream at the live position rather
+       than leaving the stall sitting there forever. */
+    soundFlowing = false;
+    if (!notFlowingSince) notFlowingSince = Date.now();
+    updateStatusText();
+    updateStatusPill();
   });
   audio.addEventListener('error', function(){
     /* MEDIA_ERR_ABORTED (code 1) is an interrupted fetch — the
@@ -1873,9 +1907,29 @@
      is covered too — it is a track like any other, and a stall
      in the gap resumes the same way an episode stall does. The
      transition static's brief gap is not a stall — the watchdog
-     leaves it alone. */
+     leaves it alone.
+     Two silent shapes are recovered:
+     — the element is paused with data ready (a refused or
+       interrupted replay): simply ask it to play again.
+     — sound has not flowed for over ten seconds even though
+       play was pressed: the element is un-paused but its stream
+       is stalled dead, or paused on a load that never arrives.
+       The old watchdog only knew the first shape, so this one
+       sat silent forever under a face claiming the episode was
+       live. Now the stream is reloaded at the live broadcast
+       position (the static track restarts the same way), and
+       the clock restarts so a still-dead stream is retried on
+       the next pass rather than hammered every tick. */
   setInterval(function(){
-    if (wantPlay && !transitionTimer && !loadFailed && audio.paused && !audio.ended && audio.readyState >= 2) tryPlay();
+    if (!wantPlay || transitionTimer || loadFailed) return;
+    if (soundFlowing) return;
+    if (audio.paused && !audio.ended && audio.readyState >= 2){ tryPlay(); return; }
+    if (notFlowingSince && Date.now() - notFlowingSince > 10000 && !audio.ended){
+      notFlowingSince = Date.now();
+      if (onStaticTrack){ stopStaticTrack(); playStaticTrack(); return; }
+      var info = cycleInfo();
+      if (info && !info.inGap && gapForCycle !== info.cycle) loadTrack(info.idx, true, info.offset);
+    }
   }, 5000);
   document.addEventListener('visibilitychange', function(){
     /* A tab that slept through a stall picks playback back up the
