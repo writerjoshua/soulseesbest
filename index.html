@@ -1613,6 +1613,9 @@
   var failStreak = 0;       /* tracks in a row that failed to load — a dead file is skipped, not fatal */
   var wantPlay = false;     /* the listener pressed play and hasn't paused — playback persists across track ends until they press pause */
   var currentArtSrc = FALLBACK_ART;
+  var elementUnlocked = false; /* sound has flowed at least once this session — the element has a real play behind it, so later src swaps may start outside a tap gesture */
+  var staticBroken = false;    /* the static track's own play was refused / its source unusable — the hiss is unavailable, but that must never cancel an episode tune-in */
+  var loadSeq = 0;             /* bumped on every loadTrack — stale seek listeners from an earlier load recognise themselves and stand down */
 
   /* Tracks that can actually play, in rotation order — a file that
      probed as zero length (an empty placeholder) never makes the
@@ -1724,7 +1727,9 @@
     }
     onStaticTrack = true;
     soundFlowing = false;
+    staticBroken = false;
     audio.loop = true;
+    audio.muted = false;
     audio.src = STATIC_SRC;
     audio.playbackRate = 1;
     if (wantPlay) tryPlay();
@@ -1802,6 +1807,24 @@
   function playWithTransition(i, autoplay, seekTo){
     beginTuning();
     if (!autoplay){ loadTrack(i, false, seekTo); return; }
+    if (!elementUnlocked){
+      /* The FIRST tune-in of the session must spend the tap
+         gesture on the episode itself. Routing it through the
+         static track first — then starting the episode from a
+         timer and a metadata wait, long after the gesture has
+         expired — is what left the player silent: browsers
+         refuse a play() that no longer carries the tap, and a
+         refused static play cancelled the whole tune-in before
+         the episode was ever reached. The window still draws
+         its tuning burst (beginTuning above); the episode loads
+         directly, muted only until its live-offset seek lands
+         (see loadTrack). Once sound has flowed once, the
+         element is unlocked and later track changes take the
+         static interlude below as before. */
+      if (transitionTimer){ clearTimeout(transitionTimer); transitionTimer = null; }
+      loadTrack(i, true, seekTo);
+      return;
+    }
     playStaticTrack();
     if (transitionTimer) clearTimeout(transitionTimer);
     transitionTimer = setTimeout(function(){
@@ -2648,6 +2671,10 @@
        listener has paused since the request was queued, the
        request is dropped instead of played. */
     if (!wantPlay) return;
+    /* A static track already known to be unplayable is not
+       retried every few seconds by the watchdogs — the hiss is
+       simply unavailable until the player next loads it fresh. */
+    if (onStaticTrack && staticBroken) return;
     attemptedPlay = true;
     loadFailed = false;
     updateStatusText();
@@ -2661,8 +2688,18 @@
     if (p) p.catch(function(err){
       if (err && err.name === 'AbortError') return; /* interrupted by pause/load — not a failure */
       if (!audio.paused) return;                    /* sound is flowing — nothing failed */
-      /* A genuine failure: back to the stopped state, where the
-         next tap retries under the normal rules. */
+      /* The static track failing is never fatal and never the
+         listener's tune-in failing: the hiss is a transition
+         and a fallback, not the program the tap asked for.
+         Cancelling wantPlay here — as this handler once did
+         for every track alike — killed episode playback that
+         had not even been attempted yet: the face showed the
+         episode's title, no sound ever started, and the button
+         fell back to Press Play. Mark the hiss unavailable and
+         leave the tune-in standing. */
+      if (onStaticTrack){ staticBroken = true; return; }
+      /* A genuine episode failure: back to the stopped state,
+         where the next tap retries under the normal rules. */
       loadFailed = true; wantPlay = false; syncPlayUI();
     });
   }
@@ -2710,39 +2747,67 @@
     maybeFetchChapters(t);
     refreshChapterDisplay(true);
     var targetSeek = (typeof seekTo === 'number' && isFinite(seekTo) && seekTo > 0.5) ? seekTo : 0;
+    var mySeq = ++loadSeq;
     if (targetSeek > 0){
-      /* Start partway in: wait for metadata, seek to the offset,
-         THEN play — so the listener never hears the start of the
-         track before the jump. */
-      var seekHandled = false;
-      var onMeta = function(){
-        if (seekHandled) return; seekHandled = true;
-        audio.removeEventListener('loadedmetadata', onMeta);
+      /* Start partway in — but start the PLAY first, in the same
+         breath as the load, and seek when the metadata lands.
+         The old order (wait for metadata, seek, only then call
+         play) put the play() call seconds after the listener's
+         tap, outside the gesture that authorises sound, and
+         browsers refused it: the title showed, nothing sounded,
+         and the player fell back to Press Play. Muting the
+         element until the seek lands keeps the other half of
+         the old promise — the listener still never hears the
+         start of the track before the jump. */
+      var seekSettled = false;
+      var unmute = function(){
+        if (seekSettled) return; seekSettled = true;
+        audio.muted = false;
+      };
+      var doSeek = function(){
         try {
           var dest = targetSeek;
           if (isFinite(audio.duration) && audio.duration > 0) dest = Math.min(dest, Math.max(0, audio.duration - 0.3));
           audio.currentTime = dest;
-        } catch(e){}
+        } catch(e){ unmute(); }
         try { refreshChapterDisplay(true); } catch(e){}
         updateBroadcastLine();
-        /* The metadata can land after the listener has already
-           paused during tune-in: only start the sound if they
-           are still tuned in, never over their pause. */
-        if (autoplay && wantPlay) tryPlay();
+        if (!autoplay) unmute();
       };
-      audio.addEventListener('loadedmetadata', onMeta);
-      setTimeout(function(){
-        if (!seekHandled){
-          seekHandled = true;
+      if (audio.readyState >= 1 && isFinite(audio.duration) && audio.duration > 0){
+        doSeek();
+      } else {
+        var onMeta = function(){
+          if (mySeq !== loadSeq) return;
           audio.removeEventListener('loadedmetadata', onMeta);
-          if (autoplay && wantPlay) tryPlay();
-        }
-      }, 3200);
-      if (!autoplay){
-        /* Display-only load with an offset: the seek still happens
-           on metadata so the chapter line matches the position. */
+          doSeek();
+        };
+        audio.addEventListener('loadedmetadata', onMeta);
+        setTimeout(function(){ audio.removeEventListener('loadedmetadata', onMeta); }, 4000);
+      }
+      if (autoplay){
+        audio.muted = true;
+        var onSeeked = function(){
+          if (mySeq !== loadSeq) return;
+          audio.removeEventListener('seeked', onSeeked);
+          unmute();
+        };
+        audio.addEventListener('seeked', onSeeked);
+        /* If the seek never completes (a host that won't honour
+           it), don't hold the sound hostage — unmute and let the
+           episode play from wherever it is. */
+        setTimeout(function(){
+          if (mySeq !== loadSeq) return;
+          audio.removeEventListener('seeked', onSeeked);
+          unmute();
+        }, 3200);
+        /* tryPlay still gates on wantPlay, so a pause pressed
+           during the load is honoured — the sound never starts
+           over the listener's pause. */
+        tryPlay();
       }
     } else {
+      audio.muted = false;
       if (autoplay) tryPlay();
     }
   }
@@ -2826,7 +2891,7 @@
   audio.addEventListener('playing', function(){
     /* Sound is actually flowing: clear any load failure and
        remember that this track provably loaded. */
-    hasPlayed = true; loadFailed = false; failStreak = 0; soundFlowing = true; signalLost = false; stallRetries = 0; lastProgressAt = Date.now(); syncPlayUI(); updateBroadcastLine();
+    hasPlayed = true; elementUnlocked = true; loadFailed = false; failStreak = 0; soundFlowing = true; signalLost = false; stallRetries = 0; lastProgressAt = Date.now(); syncPlayUI(); updateBroadcastLine();
   });
   audio.addEventListener('waiting', function(){
     /* The stream stalled mid-play (a buffer underrun): the element
