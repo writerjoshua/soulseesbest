@@ -1580,10 +1580,24 @@
      the moment the listener hit stop on a broadcast that had been
      playing fine. */
   function tryPlay(){
+    /* A pause always wins: a load step that was already in
+       flight when the listener pressed pause (the metadata
+       seek in loadTrack, a tune-in still resolving) must never
+       restart the sound afterwards. Every play request passes
+       through here, so the intent check lives here — if the
+       listener has paused since the request was queued, the
+       request is dropped instead of played. */
+    if (!wantPlay) return;
     attemptedPlay = true;
     loadFailed = false;
     updateStatusText();
     var p = audio.play();
+    if (p && p.then) p.then(function(){
+      /* The play request resolved only after the listener
+         paused — hold the pause rather than letting the late
+         start win. */
+      if (!wantPlay){ try { audio.pause(); } catch(e){} }
+    }, function(){});
     if (p) p.catch(function(err){
       if (err && err.name === 'AbortError') return; /* interrupted by pause/load — not a failure */
       if (!audio.paused) return;                    /* sound is flowing — nothing failed */
@@ -1650,7 +1664,10 @@
         } catch(e){}
         try { refreshChapterDisplay(true); } catch(e){}
         updateBroadcastLine();
-        if (autoplay) tryPlay();
+        /* The metadata can land after the listener has already
+           paused during tune-in: only start the sound if they
+           are still tuned in, never over their pause. */
+        if (autoplay && wantPlay) tryPlay();
       };
       audio.addEventListener('loadedmetadata', onMeta);
       setTimeout(function(){
