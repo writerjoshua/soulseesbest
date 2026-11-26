@@ -114,16 +114,17 @@
   .brand-link{display:flex;align-items:center;gap:11px;text-decoration:none;color:inherit;min-width:0;flex:1 1 auto;border-radius:8px}
   .brand-logo{width:38px;height:38px;border-radius:6px;object-fit:cover;background:#000;flex:none;border:1px solid var(--card-border);display:block}
   .brand-text{display:flex;flex-direction:column;min-width:0;line-height:1.2}
-  .brand-name{font-family:"Orbitron",sans-serif;font-size:15px;font-weight:800;letter-spacing:.04em;text-transform:uppercase;white-space:nowrap;color:var(--accent)}
+  .brand-name{font-family:"Orbitron",sans-serif;font-size:15px;font-weight:800;letter-spacing:.04em;text-transform:uppercase;white-space:nowrap;overflow:hidden;text-overflow:ellipsis;max-width:100%;color:var(--accent)}
   .brand-sub{font-size:11.5px;color:var(--muted);white-space:nowrap;overflow:hidden;text-overflow:ellipsis;margin-top:2px}
   .brand-link:hover .brand-name{color:var(--hover)}
   .status-pill{display:inline-flex;align-items:center;gap:7px;flex:none;font-family:"Orbitron",sans-serif;font-size:10px;letter-spacing:.14em;text-transform:uppercase;font-weight:700;color:var(--muted);border:1px solid var(--card-border-soft);border-radius:99px;padding:7px 11px}
-  .fullscreen-btn,.popout-btn{width:32px;height:32px;min-height:32px;border-radius:999px;border:1px solid var(--card-border-soft);background:rgba(0,0,0,.35);color:var(--muted);display:inline-flex;align-items:center;justify-content:center;flex:none;padding:0}
-  .fullscreen-btn:hover,.popout-btn:hover{color:var(--hover);border-color:var(--accent)}
-  .fullscreen-btn svg,.popout-btn svg{width:15px;height:15px;display:block}
-  /* In fullscreen the buttons are gone entirely — clean capture with no chrome */
-  :fullscreen .fullscreen-btn,:fullscreen .popout-btn{display:none !important}
-  :-webkit-full-screen .fullscreen-btn,:-webkit-full-screen .popout-btn{display:none !important}
+  .popout-btn{margin-left:auto;width:auto;height:32px;min-height:32px;border-radius:999px;border:1px solid var(--card-border-soft);background:rgba(0,0,0,.35);color:var(--muted);display:inline-flex;align-items:center;justify-content:center;gap:7px;flex:none;padding:0 12px 0 10px}
+  .popout-btn:hover{color:var(--hover);border-color:var(--accent)}
+  .popout-btn svg{width:15px;height:15px;display:block;flex:none}
+  .popout-label{font-family:"Orbitron",sans-serif;font-size:10px;font-weight:700;letter-spacing:.08em;text-transform:uppercase;white-space:nowrap;line-height:1}
+  /* In fullscreen the pop-out button is gone entirely — clean capture with no chrome */
+  :fullscreen .popout-btn{display:none !important}
+  :-webkit-full-screen .popout-btn{display:none !important}
   .wrap:fullscreen{background:#000;display:flex;align-items:center;justify-content:center;max-width:none;width:100%;height:100%;min-width:0;min-height:0;padding:calc(18px + env(safe-area-inset-top, 0px)) calc(18px + env(safe-area-inset-right, 0px)) calc(18px + env(safe-area-inset-bottom, 0px)) calc(18px + env(safe-area-inset-left, 0px));overflow:hidden}
   .wrap:fullscreen .card{width:min(1120px,100%,calc((100dvh - 44px) * 16 / 9));min-width:0;min-height:0;margin:0 auto}
   .wrap:-webkit-full-screen{background:#000;display:flex;align-items:center;justify-content:center;max-width:none;width:100%;height:100%;min-width:0;min-height:0;padding:calc(18px + env(safe-area-inset-top, 0px)) calc(18px + env(safe-area-inset-right, 0px)) calc(18px + env(safe-area-inset-bottom, 0px)) calc(18px + env(safe-area-inset-left, 0px));overflow:hidden}
@@ -137,7 +138,7 @@
      mouse move and fades back out so it stays out of the capture. */
   .wrap.pseudo-fs{position:fixed;inset:0;z-index:9999;background:#000;display:flex;align-items:center;justify-content:center;max-width:none;width:100%;height:100%;min-width:0;min-height:0;padding:calc(18px + env(safe-area-inset-top, 0px)) calc(18px + env(safe-area-inset-right, 0px)) calc(18px + env(safe-area-inset-bottom, 0px)) calc(18px + env(safe-area-inset-left, 0px));overflow:hidden}
   .wrap.pseudo-fs .card{width:min(1120px,100%,calc((100dvh - 44px) * 16 / 9));min-width:0;min-height:0;margin:0 auto}
-  .wrap.pseudo-fs .fullscreen-btn,.wrap.pseudo-fs .popout-btn{display:none !important}
+  .wrap.pseudo-fs .popout-btn{display:none !important}
   .fs-exit{display:none;position:absolute;top:10px;right:10px;z-index:20;width:34px;height:34px;min-height:34px;border-radius:999px;border:1px solid var(--card-border-soft);background:rgba(0,0,0,.55);color:var(--muted);align-items:center;justify-content:center;padding:0;transition:opacity .4s ease}
   .fs-exit svg{width:16px;height:16px;display:block}
   .fs-exit:hover{color:var(--hover);border-color:var(--accent)}
@@ -337,7 +338,8 @@
     .brand-sub{display:none}
     .status-pill{font-size:8px;letter-spacing:.08em;padding:4px 6px;gap:5px}
     .pill-dot{width:6px;height:6px}
-    .fullscreen-btn,.popout-btn{width:24px;height:24px;min-height:24px}
+    .popout-btn{width:24px;height:24px;min-height:24px;padding:0;gap:0}
+    .popout-label{display:none}
     /* Wider track-meta column: smaller art, volume, and play
        button so the status and broadcast lines stay readable */
     .thumb-frame{width:40px;height:40px}
@@ -345,7 +347,7 @@
     .volume-icon{display:none}
     .play-btn{width:44px;height:44px}
     .install-instructions{font-size:10.5px}
-    .fullscreen-btn svg,.popout-btn svg{width:12px;height:12px}
+    .popout-btn svg{width:12px;height:12px}
     .thumb-frame{border-radius:7px}
     .thumb-frame.is-fallback .thumb-art{padding:0}
     .track-title{font-size:13px}
@@ -424,6 +426,163 @@
   @media (orientation:landscape) and (max-height:620px){
     .card.has-chapters .wave-window,.card.has-chapters .wave-box{min-height:92px}
   }
+
+  /* ==== PORTRAIT PHONE FACE =======================================
+     A tall portrait phone is not a small landscape screen, so the
+     face stops pretending to be one. Past a real portrait height
+     the card drops the fixed 16:9 letterbox and becomes a portrait
+     card that uses the screen: the signal window gets genuine
+     height, the artwork and type come back up to reading size, the
+     play button is thumb-sized, and the volume slider moves to its
+     own full-width row under the track row instead of being
+     squeezed into the corner of it. Short portrait frames — a
+     shallow embed slot, a small window — keep the compact 16:9
+     face above: the min-height gate below is what decides, so a
+     short frame never gets a tall card forced into it. Landscape,
+     desktop, fullscreen, and the pop-out keep the 16:9 face
+     exactly as they were. */
+  @media (max-width:680px) and (orientation:portrait) and (min-height:600px){
+    .card{aspect-ratio:auto;width:100%;height:min(620px,calc(100dvh - 44px));min-width:0;min-height:0;padding:16px 16px 12px;gap:12px;border-radius:14px}
+    /* Two-row header: the station name and subtitle get a full
+       row of their own, and the pill and buttons drop to a second
+       row — on one crowded row the fixed pill and buttons starved
+       the name down to a sliver and it painted underneath them. */
+    .brand-row{gap:8px 10px;flex-wrap:wrap}
+    .brand-link{gap:10px;flex:1 1 100%}
+    .brand-logo{width:40px;height:40px}
+    .brand-name{font-size:14px;letter-spacing:.03em}
+    .brand-sub{display:block;font-size:11px}
+    .status-pill{font-size:9px;letter-spacing:.1em;padding:6px 9px;gap:6px}
+    .pill-dot{width:7px;height:7px}
+    .popout-btn{margin-left:auto;width:auto;height:auto;min-height:32px;padding:6px 10px;gap:7px;flex:1 1 auto;max-width:248px}
+    .popout-label{display:inline;font-size:8.5px;letter-spacing:.05em;white-space:normal;text-align:center;line-height:1.35}
+    .popout-btn svg{width:15px;height:15px}
+    .wave-window{min-height:150px}
+    .wave-box{min-height:150px}
+    .wave-label{font-size:9.5px}
+    .now-row{flex-wrap:wrap;gap:10px 12px}
+    .art-wrap{order:1}
+    /* Zero basis: the title/artist column takes whatever width
+       the art and play button leave on their row, and a long
+       title wraps inside the column — with an auto basis its
+       unwrapped width pushed the whole block (and the play
+       button) onto the row below the art. */
+    .track-meta{order:2;flex:1 1 0;min-width:0}
+    .play-btn{order:3;width:58px;height:58px}
+    .play-btn svg{width:26px;height:26px}
+    .thumb-frame{width:72px;height:72px;border-radius:10px}
+    .track-title{font-size:19px;line-height:1.25}
+    .track-artist{font-size:14px;margin-top:3px}
+    .status-line{font-size:12px;margin-top:5px}
+    .broadcast-line{font-size:12px;margin-top:4px}
+    .chapter-line{font-size:12px}
+    .volume-inline{order:4;flex:1 1 100%;min-width:0;gap:8px}
+    .volume-icon{display:block;width:18px;height:18px}
+    .volume-value{display:block;font-size:12px}
+    .volume-slider::-webkit-slider-thumb{width:19px;height:19px;margin-top:-7px}
+    .volume-slider::-moz-range-thumb{width:19px;height:19px}
+    .schedule-bar{font-size:11.5px;gap:10px;padding-top:10px}
+    .schedule-bar .radio-link{font-size:11.5px}
+    .schedule-bar .live-clock{padding-left:10px;font-size:11.5px}
+    .card.has-chapters .wave-window,.card.has-chapters .wave-box{min-height:120px}
+  }
+
+  /* ==== FRAME FIT =================================================
+     The same two layouts — compact and portrait — keyed to classes
+     instead of media queries. The small script at the end of the
+     body measures the frame this page is actually sitting in and
+     sets these classes on <html>:
+       fw-narrow   the effective width is phone-sized (<= 680px)
+       fw-portrait phone-sized, tall, and taller than wide
+       embed-fit   the frame is WIDER than the device's own screen
+                   (a fixed-width embed slot on a phone — the frame
+                   reports a desktop width, so no media query ever
+                   fires, and the desktop face spills off the edge
+                   of the phone). The stage is capped to the device
+                   width (--device-w) and left-aligned, so the
+                   whole face sits inside the part of the frame
+                   the phone can actually show.
+     On a standalone page the classes simply agree with the media
+     queries above — same values, so nothing changes twice. In an
+     embed whose frame disagrees with the page viewport, the
+     classes are what make the player fit the frame it was given.
+     Values mirror the media-query blocks on purpose: the two
+     paths must never drift into two different faces. */
+  html.fw-narrow .wrap{min-width:0}
+  html.fw-narrow .card{padding:9px 12px 6px;border-radius:10px;gap:5px;min-width:300px;min-height:168px}
+  html.embed-fit .card{min-width:0}
+  html.fw-narrow .wave-window,html.fw-narrow .wave-box{min-height:26px}
+  html.fw-narrow .schedule-bar{flex-wrap:nowrap;padding-top:6px;font-size:10.5px;gap:6px;width:100%}
+  html.fw-narrow .schedule-bar .radio-link{font-size:10.5px}
+  html.fw-narrow .schedule-bar .live-clock{white-space:nowrap;padding-left:6px;font-size:10.5px}
+  html.fw-narrow .ticker-viewport{overflow:hidden}
+  html.fw-narrow .ticker-track{white-space:nowrap}
+  html.fw-narrow .ticker-copy{white-space:nowrap}
+  html.fw-narrow .ticker-msg{margin-right:150px}
+  html.fw-narrow .ticker-msg:last-child{margin-right:150px}
+  html.fw-narrow .brand-row{gap:6px}
+  html.fw-narrow .brand-link{gap:7px}
+  html.fw-narrow .brand-logo{width:28px;height:28px}
+  html.fw-narrow .brand-name{font-size:11px;letter-spacing:.01em}
+  html.fw-narrow .brand-sub{display:none}
+  html.fw-narrow .status-pill{font-size:8px;letter-spacing:.08em;padding:4px 6px;gap:5px}
+  html.fw-narrow .pill-dot{width:6px;height:6px}
+  html.fw-narrow .popout-btn{width:24px;height:24px;min-height:24px;padding:0;gap:0}
+  html.fw-narrow .popout-label{display:none}
+  html.fw-narrow .popout-btn svg{width:12px;height:12px}
+  html.fw-narrow .now-row{gap:8px}
+  html.fw-narrow .thumb-frame{width:40px;height:40px;border-radius:7px}
+  html.fw-narrow .track-title{font-size:13px;line-height:1.2}
+  html.fw-narrow .track-artist{font-size:11px;margin-top:2px}
+  html.fw-narrow .status-line{font-size:9.5px;margin-top:2px}
+  html.fw-narrow .broadcast-line{font-size:9.5px;margin-top:2px}
+  html.fw-narrow .chapter-line{font-size:11px}
+  html.fw-narrow .volume-inline{flex-basis:62px;min-width:54px;gap:4px}
+  html.fw-narrow .volume-icon{display:none}
+  html.fw-narrow .volume-value{display:none}
+  html.fw-narrow .play-btn{width:44px;height:44px}
+  html.fw-narrow .play-btn svg{width:20px;height:20px}
+  html.fw-narrow .card.has-chapters .wave-window,html.fw-narrow .card.has-chapters .wave-box{min-height:74px}
+
+  html.fw-portrait .card{aspect-ratio:auto;width:100%;height:min(620px,calc(100dvh - 44px));min-width:0;min-height:0;padding:16px 16px 12px;gap:12px;border-radius:14px}
+  html.fw-portrait .brand-row{gap:8px 10px;flex-wrap:wrap}
+  html.fw-portrait .brand-link{gap:10px;flex:1 1 100%}
+  html.fw-portrait .brand-logo{width:40px;height:40px}
+  html.fw-portrait .brand-name{font-size:14px;letter-spacing:.03em}
+  html.fw-portrait .brand-sub{display:block;font-size:11px}
+  html.fw-portrait .status-pill{font-size:9px;letter-spacing:.1em;padding:6px 9px;gap:6px}
+  html.fw-portrait .pill-dot{width:7px;height:7px}
+  html.fw-portrait .popout-btn{margin-left:auto;width:auto;height:auto;min-height:32px;padding:6px 10px;gap:7px;flex:1 1 auto;max-width:248px}
+  html.fw-portrait .popout-label{display:inline;font-size:8.5px;letter-spacing:.05em;white-space:normal;text-align:center;line-height:1.35}
+  html.fw-portrait .popout-btn svg{width:15px;height:15px}
+  html.fw-portrait .wave-window,html.fw-portrait .wave-box{min-height:150px}
+  html.fw-portrait .wave-label{font-size:9.5px}
+  html.fw-portrait .now-row{flex-wrap:wrap;gap:10px 12px}
+  html.fw-portrait .art-wrap{order:1}
+  html.fw-portrait .track-meta{order:2;flex:1 1 0;min-width:0}
+  html.fw-portrait .play-btn{order:3;width:58px;height:58px}
+  html.fw-portrait .play-btn svg{width:26px;height:26px}
+  html.fw-portrait .thumb-frame{width:72px;height:72px;border-radius:10px}
+  html.fw-portrait .track-title{font-size:19px;line-height:1.25}
+  html.fw-portrait .track-artist{font-size:14px;margin-top:3px}
+  html.fw-portrait .status-line{font-size:12px;margin-top:5px}
+  html.fw-portrait .broadcast-line{font-size:12px;margin-top:4px}
+  html.fw-portrait .chapter-line{font-size:12px}
+  html.fw-portrait .volume-inline{order:4;flex:1 1 100%;min-width:0;gap:8px}
+  html.fw-portrait .volume-icon{display:block;width:18px;height:18px}
+  html.fw-portrait .volume-value{display:block;font-size:12px}
+  html.fw-portrait .volume-slider::-webkit-slider-thumb{width:19px;height:19px;margin-top:-7px}
+  html.fw-portrait .volume-slider::-moz-range-thumb{width:19px;height:19px}
+  html.fw-portrait .schedule-bar{font-size:11.5px;gap:10px;padding-top:10px}
+  html.fw-portrait .schedule-bar .radio-link{font-size:11.5px}
+  html.fw-portrait .schedule-bar .live-clock{padding-left:10px;font-size:11.5px}
+  html.fw-portrait .card.has-chapters .wave-window,html.fw-portrait .card.has-chapters .wave-box{min-height:120px}
+
+  /* The embed-fit stage itself: capped to the device width and
+     left-aligned (the visible slice of an over-wide frame is its
+     left edge). The cap variable is set by the frame-fit script;
+     without it the stage is simply full width. */
+  html.embed-fit .wrap{width:var(--device-w,100%);min-width:0}
 </style>
 </head>
 <body>
@@ -441,11 +600,9 @@
         <span class="pill-dot" id="pillDot"></span>
         <span id="onairText">LIVE</span>
       </span>
-      <button class="popout-btn" id="popoutBtn" type="button" aria-label="Pop out player — opens in an 800 by 480 window" title="Pop out — 800 × 480 window">
+      <button class="popout-btn" id="popoutBtn" type="button" aria-label="Pop Out Player to Listen in Background — opens in an 800 by 480 window" title="Pop Out Player to Listen in Background">
         <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M14 4h6v6"/><path d="M20 4L11 13"/><path d="M19 13v6a1 1 0 0 1-1 1H5a1 1 0 0 1-1-1V6a1 1 0 0 1 1-1h6"/></svg>
-      </button>
-      <button class="fullscreen-btn" id="fullscreenBtn" type="button" aria-label="Enter full screen" title="Full screen — for a clean capture">
-        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M4 9V5a1 1 0 0 1 1-1h4"/><path d="M15 4h4a1 1 0 0 1 1 1v4"/><path d="M20 15v4a1 1 0 0 1-1 1h-4"/><path d="M9 20H5a1 1 0 0 1-1-1v-4"/></svg>
+        <span class="popout-label">Pop Out Player to Listen in Background</span>
       </button>
     </div>
 
@@ -497,6 +654,54 @@
     <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M9 4v4a1 1 0 0 1-1 1H4"/><path d="M20 9h-4a1 1 0 0 1-1-1V4"/><path d="M15 20v-4a1 1 0 0 1 1-1h4"/><path d="M4 15h4a1 1 0 0 1 1 1v4"/></svg>
   </button>
 </main>
+
+<script>
+/* ==== FRAME FIT ===================================================
+   Media queries answer for the page's own viewport. Embedded —
+   in a site header, say — this page's viewport is whatever size
+   the embed frame was given, and that is not always the size of
+   the screen looking at it: a fixed-width frame on a phone
+   reports a desktop width, every media query stays silent, and
+   the desktop face spills off the phone's edge. So the layout is
+   also keyed to the frame this page really sits in. This script
+   measures the frame (and, through screen.width, the device
+   behind an over-wide frame) and sets the classes the FRAME FIT
+   styles at the end of the stylesheet respond to:
+     fw-narrow / fw-portrait — the effective width is phone-sized
+     embed-fit + --device-w  — the frame is wider than the phone's
+       own screen, so the stage is capped to the screen's width
+   It re-measures on resize, rotation, and fullscreen changes, so
+   the face always matches the box it currently occupies. On a
+   standalone page the classes simply agree with the media
+   queries and nothing changes. Playback never reads any of this.
+   ================================================================== */
+(function(){
+  var root = document.documentElement;
+  function fit(){
+    var frameW = root.clientWidth || window.innerWidth || 0;
+    var frameH = window.innerHeight || 0;
+    var screenW = (window.screen && window.screen.width) || 0;
+    var coarse = false;
+    try { coarse = !!(window.matchMedia && window.matchMedia('(pointer: coarse)').matches); } catch(e){}
+    /* Over-wide frame on a phone-sized touch device: the frame is
+       lying about the screen, so believe the screen. The margin
+       absorbs rounding and scrollbar differences. */
+    var embedFit = coarse && screenW > 0 && screenW <= 680 && frameW > screenW + 24;
+    root.classList.toggle('embed-fit', embedFit);
+    if (embedFit) root.style.setProperty('--device-w', screenW + 'px');
+    else root.style.removeProperty('--device-w');
+    var effW = embedFit ? screenW : frameW;
+    var narrow = effW > 0 && effW <= 680;
+    root.classList.toggle('fw-narrow', narrow);
+    root.classList.toggle('fw-portrait', narrow && frameH >= 600 && frameH > effW);
+  }
+  fit();
+  window.addEventListener('resize', fit);
+  window.addEventListener('orientationchange', fit);
+  document.addEventListener('fullscreenchange', fit);
+  document.addEventListener('webkitfullscreenchange', fit);
+})();
+</script>
 
 <script>
 (function(){
