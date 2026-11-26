@@ -1304,6 +1304,30 @@
      playing (only its position in the order is updated), and the
      face lands on the live broadcast position in the new
      rotation (see applyLivePosition). */
+  /* The Listening Party returns every other episode: the newest
+     episode whose title says Listening Party is lifted out of its
+     feed position and dealt back in after every other episode, so
+     the rotation alternates episode, Party, episode, Party — and
+     wraps cleanly, Party after the last episode too. The newest
+     Party-titled episode wins; any older one stays a regular
+     episode. No feed changes are needed: the interleave is rebuilt
+     from the episode list on every feed read, so it holds across
+     re-checks. With no Listening Party in the feed, or with
+     nothing else to alternate with, the rotation is untouched. */
+  function interleaveListeningParty(episodes){
+    var partyIdx = -1;
+    for (var i = 0; i < episodes.length; i++){
+      if (/(listening party)/i.test(episodes[i].title || '')){ partyIdx = i; break; }
+    }
+    if (partyIdx < 0) return episodes;
+    var party = episodes[partyIdx];
+    var rest = [];
+    for (var j = 0; j < episodes.length; j++){ if (j !== partyIdx) rest.push(episodes[j]); }
+    if (!rest.length) return episodes;
+    var out = [];
+    for (var k = 0; k < rest.length; k++){ out.push(rest[k]); out.push(party); }
+    return out;
+  }
   function setTracks(newTracks){
     var currentSrc = (tracks[index] && tracks[index].src) || '';
     tracks = newTracks;
@@ -1355,7 +1379,7 @@
       for (var i = 0; i < episodes.length; i++) key += episodes[i].src + '|';
       if (key === feedEpisodeKey){ updateRotationUI(); return; }
       feedEpisodeKey = key;
-      setTracks(episodes);
+      setTracks(interleaveListeningParty(episodes));
       /* Probe anything the feed gave no duration for, so the
          rotation list and ticker stay exact. */
       probeDurations(function(){ updateRotationUI(); updateBroadcastLine(); });
